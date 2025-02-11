@@ -10,10 +10,6 @@ from langchain_core.prompts import (
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import OllamaEmbeddings
 from langchain_core.documents import Document
-from PIL import Image
-import pytesseract
-import tempfile
-import os
 
 # Set page configuration
 st.set_page_config(page_title="AI Medical Assistant", layout="wide")
@@ -22,28 +18,26 @@ st.set_page_config(page_title="AI Medical Assistant", layout="wide")
 st.markdown("""
     <style>
         .message-container {
-    padding: 15px;
-    border-radius: 15px;
-    margin-bottom: 10px;
-    font-size: 16px;
-    max-width: 70%;
-}
-.user-message {
-    background-color: #d4edda;
-    color: #155724;
-    align-self: flex-end;
-}
-.ai-message {
-    background-color: #cce5ff;
-    color: #004085;
-    align-self: flex-start;
-}
-.stButton button {
-    background-color: #007bff;
-    color: white;
-    border-radius: 10px;
-}
-
+            padding: 15px;
+            border-radius: 15px;
+            margin-bottom: 10px;
+            font-size: 16px;
+            max-width: 70%;
+        }
+        .user-message {
+            background-color: #d4edda;
+            color: #155724;
+            align-self: flex-end;
+        }
+        .ai-message {
+            background-color: #cce5ff;
+            color: #004085;
+            align-self: flex-start;
+        }
+        .stButton button {
+            background-color: #007bff;
+            color: white;
+            border-radius: 10px;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -59,49 +53,32 @@ if "page" not in st.session_state:
 # Sidebar configuration
 with st.sidebar:
     st.header("⚙️ Configuration")
-    selected_model = st.selectbox(
-        "Choose Model",
-        ["deepseek-r1:1.5b", "deepseek-r1:7b", "deepseek-r1:latest"],
+    st.divider()
+    
+    # RAG Model Selection (for interface purposes only)
+    st.subheader("RAG Model Selection")
+    rag_model = st.radio(
+        "Choose RAG Model",
+        ["RAG 1 Model", "RAG 2 GB Model", "RAG 3 GB Model"],
         index=0
     )
     st.divider()
     
+    # Page Navigation
     if st.button("Medical Assistant"):
         st.session_state.page = "Medical Assistant"
     if st.button("Health Risk Calculator"):
         st.session_state.page = "Health Risk Calculator"
-    if st.button("Medical Records OCR"):
-        st.session_state.page = "Medical Records OCR"
     if st.button("Cancer Risk Assessment"):
         st.session_state.page = "Cancer Risk Assessment"
     
     st.markdown("Built with [Ollama](https://ollama.ai/) | [LangChain](https://python.langchain.com/)")
     st.markdown("👨‍💻 Made By: Abhay Kumar, Prakash Kumar Nayak, Ankit Raj Sharma, Mudit Kumar Sharma")
 
-# Initialize RAG model
+# Initialize RAG model with the hardcoded model name
+selected_model = "deepseek-r1:1.5b"  # Only this model is used in the backend
 embeddings = OllamaEmbeddings(base_url="http://127.0.0.1:11434", model=selected_model)
 vectorstore = FAISS.from_texts(["Medical knowledge base placeholder"], embeddings)
-
-# Function to perform OCR on an image
-def perform_ocr(image):
-    text = pytesseract.image_to_string(image, lang='eng')
-    return text.strip()
-
-
-# Function to analyze and summarize medical records
-def analyze_medical_records(text):
-    llm_engine = ChatOllama(
-        model=selected_model,
-        base_url="http://127.0.0.1:11434",
-        temperature=0.3
-    )
-    system_prompt = SystemMessagePromptTemplate.from_template(
-        "You are an AI medical assistant. Analyze the following medical records and provide a concise summary and recommendations."
-    )
-    human_prompt = HumanMessagePromptTemplate.from_template(text)
-    prompt_chain = ChatPromptTemplate.from_messages([system_prompt, human_prompt])
-    processing_pipeline = prompt_chain | llm_engine | StrOutputParser()
-    return processing_pipeline.invoke({})
 
 # Function to calculate cancer risk score
 def calculate_cancer_risk_score(age, gender, family_history, smoking, alcohol, diet, physical_activity, environmental_exposure, medical_history):
@@ -265,35 +242,4 @@ elif st.session_state.page == "Health Risk Calculator":
         risk_score = sum([bmi > 30, smoking == "Regularly", exercise == "Rarely", age > 50, blood_pressure == "Yes", diabetes == "Yes"]) * 2
         risk_level = "Low" if risk_score <= 2 else "Moderate" if risk_score <= 4 else "High"
         st.write(f"Your estimated health risk level is: **{risk_level}**")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# Medical Records OCR Page
-elif st.session_state.page == "Medical Records OCR":
-    st.header("📄 Medical Records OCR")
-    st.markdown('<div class="main-container">', unsafe_allow_html=True)
-    uploaded_file = st.file_uploader("Upload your medical records (image or PDF)", type=["png", "jpg", "jpeg", "pdf"])
-
-    if uploaded_file is not None:
-        st.markdown(f'<div class="uploaded-file">Uploaded file: <strong>{uploaded_file.name}</strong></div>', unsafe_allow_html=True)
-        
-        if uploaded_file.type.startswith("image"):
-            image = Image.open(uploaded_file)
-            st.image(image, caption="Uploaded Image", use_column_width=True)
-            with st.spinner("🔍 Extracting text from the image..."):
-                extracted_text = perform_ocr(image)
-                st.markdown(f'<div class="message-container ai-message">Extracted Text:\n{extracted_text}</div>', unsafe_allow_html=True)
-        
-        elif uploaded_file.type == "application/pdf":
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-                tmp_file.write(uploaded_file.getvalue())
-                tmp_file_path = tmp_file.name
-            with st.spinner("🔍 Extracting text from the PDF..."):
-                extracted_text = pytesseract.image_to_string(tmp_file_path)
-                st.markdown(f'<div class="message-container ai-message">Extracted Text:\n{extracted_text}</div>', unsafe_allow_html=True)
-            os.remove(tmp_file_path)
-        
-        if st.button("Analyze and Summarize"):
-            with st.spinner("🔍 Analyzing and summarizing the medical records..."):
-                summary = analyze_medical_records(extracted_text)
-                st.markdown(f'<div class="message-container ai-message">Summary and Recommendations:\n{summary}</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
